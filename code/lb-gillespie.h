@@ -8,7 +8,10 @@
 #include <random>
 
 
-template <typename TCell, typename TRng=std::mt19937>
+#include "xoshiro256ss.h"
+
+
+template <typename TCell, typename TRng=vigna::xoshiro256ss>
 class LB {
 private:
   size_t choose_event(const std::vector<double> &rates, double sum) {
@@ -47,7 +50,7 @@ public:
       auto operator()() {
         auto diff = std::chrono::steady_clock::now() - prev;
         prev = std::chrono::steady_clock::now();
-        return std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
+        return std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
       }
       std::chrono::steady_clock::time_point prev;
     };
@@ -67,8 +70,12 @@ public:
 
     double estimated_half_wait = 0.0;
     while (t < t_end) {
+      std::cout << "begin " << interval_timer() << " \t";
       // Fetch birth, mutation, and death rates for all cells
       rates.resize(cells.size() * 3);
+      std::cout << interval_timer() << '\t';
+
+      double event_rate = 0.0; // Summing during calculation is more effective (register usage?)
       for (size_t i = 0; i < cells.size(); ++i) {
         // Store rates in order (birth without mutation, birth with mutation, death)
         // With birth interaction overflowing into death rate if it is bigger than the birth rate
@@ -76,30 +83,38 @@ public:
                         - (cells.size() - 1) * cells[i].get_birth_interaction();
         rates[3*i + 2]  = -std::min(rates[3*i], 0.0);
         rates[3*i]      = std::max(rates[3*i], 0.0);
+        event_rate += rates[3*i];
         rates[3*i + 1]  = rates[3*i] * cells[i].get_discrete_mutation_rate();
         rates[3*i]     -= rates[3*i + 1];
         rates[3*i + 2] += cells[i].get_death_rate()
                         + (cells.size() - 1) * cells[i].get_death_interaction();
+        event_rate += rates[3*i + 2];
       }
+      std::cout << interval_timer() << '\t';
 
       // Take timestep dependent on rate of all events
       // double event_rate = std::reduce(rates.begin(), rates.end(), 0.0);
-      double event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
+      // double event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
+      std::cout << interval_timer() << '\t';
       double dt = std::exponential_distribution<double>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;
+      std::cout << interval_timer() << '\t';
 
       // Select an event to perform based on their rates
       size_t event = choose_event(rates, event_rate);
+      std::cout << interval_timer() << '\t';
       size_t event_type = event % 3;
       size_t event_cell = event / 3;
       switch (event_type) {
       case 0: // birth without mutation
         cells.emplace_back(cells[event_cell]);
+        cells[event_cell].mutate_continuous(rng);
         cells.back().mutate_continuous(rng);
         break;
       case 1: // birth with mutation
         cells.emplace_back(cells[event_cell]);
+        cells[event_cell].mutate_continuous(rng);
         cells.back().mutate_discrete(rng);
         cells.back().mutate_continuous(rng);
         break;
@@ -108,6 +123,7 @@ public:
         cells.pop_back();
         break;
       }
+      std::cout << interval_timer() << std::endl;
 
       if (t > next_record) {
         std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << std::endl;
