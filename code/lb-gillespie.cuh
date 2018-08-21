@@ -89,12 +89,17 @@ public:
 
     if (true) {
 
+      std::cout << cells.size();
       std::cout << "c\t";
 
       // large population; copy to gpu and calculate rates in parallel
       cudaMemcpy(d_cells, cells.data(), cells.size() * sizeof(TCell), cudaMemcpyHostToDevice);
       get_rates<<<grid, block>>>(d_cells, d_rates, cells.size(), t + estimated_half_wait);
       cudaMemcpy(rates.data(), d_rates, cells.size() * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+
+      std::cout << std::endl;
+      for (size_t i = 0; i < cells.size() * 3; ++i) std::cout << rates[i] << ' ';
+      std::cout << std::endl;
 
     } else {
 
@@ -121,6 +126,7 @@ public:
     // Take timestep dependent on rate of all events
     // event_rate = std::reduce(rates.begin(), rates.end(), 0.0); // not commonly supported
     event_rate = std::accumulate(rates.begin(), rates.begin() + cells.size()*3, 0.0);
+    std::cout << "event_rate " << event_rate << std::endl;
     std::cout << interval_timer() << '\t';
     float dt = std::exponential_distribution<float>(event_rate)(rng);
     t += dt;

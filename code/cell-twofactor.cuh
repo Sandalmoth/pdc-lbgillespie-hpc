@@ -24,10 +24,10 @@ public:
   }
 
 
-  size_t get_discrete_type() {
+  __host__ __device__ size_t get_discrete_type() {
     return discrete;
   }
-  float get_continuous_type() {
+  __host__ __device__ float get_continuous_type() {
     return continuous;
   }
 
