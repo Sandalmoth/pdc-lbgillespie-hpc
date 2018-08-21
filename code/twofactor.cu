@@ -1,5 +1,5 @@
-#include "lb-gillespie.h"
-#include "cell-twofactor.h"
+#include "lb-gillespie.cuh"
+#include "cell-twofactor.cuh"
 
 
 int main() {
