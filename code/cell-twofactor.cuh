@@ -12,7 +12,7 @@ public:
     continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
   }
 
-  Cell(size_t discrete, float continuous)
+  Cell(unsigned int discrete, float continuous)
     : discrete(discrete)
     , continuous(continuous) {
     continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
@@ -24,7 +24,7 @@ public:
   }
 
 
-  __host__ __device__ size_t get_discrete_type() {
+  __host__ __device__ unsigned int get_discrete_type() {
     return discrete;
   }
   __host__ __device__ float get_continuous_type() {
@@ -72,7 +72,7 @@ public:
 
 
 private:
-  size_t discrete = 0;
+  unsigned int discrete = 0;
   float continuous = 1.0;
 
   std::normal_distribution<float> continuous_mutation_distribution;
