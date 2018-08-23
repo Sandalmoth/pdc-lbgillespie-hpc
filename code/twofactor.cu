@@ -3,6 +3,7 @@
 
 
 int main() {
+  std::cout << sizeof(Cell) << std::endl;
   LB<Cell> lb;
   for (int i = 0; i < 3000000; ++i) {
     lb.add_cell(Cell());

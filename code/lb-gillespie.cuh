@@ -92,6 +92,8 @@ public:
       // std::cout << cells.size();
       std::cout << "c\t";
 
+      grid.x = (cells.size() + BLOCK_SIZE - 1)/BLOCK_SIZE;
+
       // large population; copy to gpu and calculate rates in parallel
       cudaMemcpy(d_cells, cells.data(), cells.size() * sizeof(TCell), cudaMemcpyHostToDevice);
       std::cout << interval_timer() << '\t';

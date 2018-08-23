@@ -9,13 +9,13 @@
 class Cell {
 public:
   Cell() {
-    continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
+    // continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
   }
 
   Cell(unsigned int discrete, float continuous)
     : discrete(discrete)
     , continuous(continuous) {
-    continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
+    // continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
   }
 
 
@@ -66,7 +66,8 @@ public:
 
   template <typename TRng>
   void mutate_continuous(TRng rng) {
-    continuous += continuous_mutation_distribution(rng);
+    // continuous += continuous_mutation_distribution(rng);
+    continuous += std::normal_distribution<float>(0.0, 0.1)(rng);
   }
 
 
@@ -75,7 +76,7 @@ private:
   unsigned int discrete = 0;
   float continuous = 1.0;
 
-  std::normal_distribution<float> continuous_mutation_distribution;
+  // std::normal_distribution<float> continuous_mutation_distribution;
 
 };
 
