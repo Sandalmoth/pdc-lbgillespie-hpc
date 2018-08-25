@@ -16,8 +16,8 @@
 #define MAX_RATES  15000000
 #define MAX_CELLS   5000000
 #define BLOCK_SIZE      256
-#define SUM_BLOCK_SIZE   32
-#define SUM_DEPTH         3
+#define SUM_BLOCK_SIZE  128
+#define SUM_DEPTH         2
 
 
 template <typename TCell>
@@ -46,10 +46,10 @@ __global__ void partial_sum(float *rates, float *sum, size_t n) {
   float this_rate = 0;
   if (i < n)
     this_rate = rates[i];
-  printf(" (%i %i %lu %f)", threadIdx.x, i, n, this_rate);
+  // printf(" (%i %i %lu %f)", threadIdx.x, i, n, this_rate);
   float result = BR(temp).Sum(this_rate, n);
-  if (threadIdx.x == 0)
-    printf(" [%i %f]", i, result);
+  // if (threadIdx.x == 0)
+    // printf(" [%i %f]", i, result);
   if (threadIdx.x == 0)
     sum[blockIdx.x] = result;
 }
@@ -67,11 +67,32 @@ private:
   size_t choose_event(const std::vector<float> &rates,
                       const std::array<std::vector<float>, SUM_DEPTH> &partial_sums,
                       double sum) {
-    // Because the std::discrete_distribution is very slow (probably because it copies the weight vector)
+    // Because the std::discrete_distribution is very slow
+    // (probably because it copies the weight vector)
     // I was forced to make my own implementation.
+    // Having vectors with partial sums speeds up the process (to log(N) i think)
+    // since larger steps can be taken at first
     double k = std::uniform_real_distribution<double>(0, sum)(rng);
+    // std::cout << std::endl << k << "->" << sum << std::endl;
     double cumsum = 0.0;
-    for (size_t i = 0; i < rates.size(); ++i) {
+    int j = 0;
+    for (int i = SUM_DEPTH - 1; i >= 0; --i) {
+      // for (auto x: partial_sums[i]) std::cout << x << ' ';
+      // std::cout << std::endl;
+      for (size_t u = j; u < partial_sums[i].size(); ++u) {
+        cumsum += partial_sums[i][u];
+        // std::cout << "  " << u << ' ' << cumsum << std::endl;
+        if (cumsum > k) {
+          cumsum -= partial_sums[i][u];
+          break;
+        }
+        ++j;
+      }
+      j *= SUM_BLOCK_SIZE;
+      // std::cout << i << ':' << j << std::endl;
+    }
+    // std::cout << j << ' ' << cumsum << std::endl;
+    for (size_t i = j; i < rates.size(); ++i) {
       cumsum += rates[i];
       if (cumsum > k)
         return i;
@@ -173,32 +194,34 @@ public:
         std::cout << interval_timer() << '\t';
         cudaMemcpy(rates.data(), d_rates, cells.size() * 3 * sizeof(float), cudaMemcpyDeviceToHost);
 
+        std::cout << interval_timer() << '\t';
         // get partial sums of the rates
         int n_rates_prev = cells.size() * 3;
         sum_grid.x = divup(cells.size() * 3, SUM_BLOCK_SIZE);
         rate_sums[0].resize(sum_grid.x);
-        std::cout << std::endl;
-        std::cout << sum_grid.x << ' ' << rate_sums[0].size() << std::endl;
+        // std::cout << std::endl;
+        // std::cout << sum_grid.x << ' ' << rate_sums[0].size() << std::endl;
         partial_sum<<<sum_grid, sum_block>>>(d_rates, d_rate_sums[0], n_rates_prev);
         cudaMemcpy(rate_sums[0].data(), d_rate_sums[0], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost);
-        std::cout << "{ ";
-        for (auto x: rate_sums[0]) std::cout << x << ' ';
-        std::cout << '}' << std::endl;
-        std::cout << '0' << ' ' << std::accumulate(rate_sums[0].begin(),
-                                                   rate_sums[0].begin() + sum_grid.x,
-                                                   0.0) << std::endl;
+        // std::cout << "{ ";
+        // for (auto x: rate_sums[0]) std::cout << x << ' ';
+        // std::cout << '}' << std::endl;
+        // std::cout << '0' << ' ' << std::accumulate(rate_sums[0].begin(),
+        //                                            rate_sums[0].begin() + sum_grid.x,
+        //                                            0.0) << std::endl;
         for (int i = 1; i < SUM_DEPTH; ++i) {
           n_rates_prev = sum_grid.x;
           sum_grid.x = divup(sum_grid.x, SUM_BLOCK_SIZE);
           rate_sums[i].resize(sum_grid.x);
-          std::cout << sum_grid.x << ' ' << rate_sums[i].size() << std::endl;
+          // std::cout << sum_grid.x << ' ' << rate_sums[i].size() << std::endl;
           partial_sum<<<sum_grid, sum_block>>>(d_rate_sums[i-1], d_rate_sums[i], n_rates_prev);
           cudaMemcpy(rate_sums[i].data(), d_rate_sums[i], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost);
-          std::cout << i << ' ' << std::accumulate(rate_sums[i].begin(),
-                                                   rate_sums[i].begin() + sum_grid.x,
-                                                   0.0) << std::endl;
+          // std::cout << i << ' ' << std::accumulate(rate_sums[i].begin(),
+          //                                          rate_sums[i].begin() + sum_grid.x,
+          //                                          0.0) << std::endl;
         }
 
+        std::cout << interval_timer() << '\t';
         // std::cout << std::endl;
         // for (size_t i = 0; i < cells.size() * 3; ++i) std::cout << rates[i] << ' ';
         // std::cout << std::endl;
@@ -225,23 +248,23 @@ public:
 
       std::cout << interval_timer() << '\t';
 
-      std::cout << "cuda finished" << std::endl;
+      // std::cout << "cuda finished" << std::endl;
 
-      std::cout << "rates_sum" << ' ' << std::accumulate(rates.begin(),
-                                                         rates.begin() + cells.size()*3,
-                                                         0.0) << std::endl;
-      for (auto it = rates.begin(); it != rates.begin() + cells.size()*3; ++it) std::cout << (*it) << ' '; std::cout << std::endl;
-      for (int i = 0; i < SUM_DEPTH; ++i) {
-        for (auto x: rate_sums[i]) std::cout << x << ' '; std::cout << std::endl;
-      }
+      // std::cout << "rates_sum" << ' ' << std::accumulate(rates.begin(),
+      //                                                    rates.begin() + cells.size()*3,
+      //                                                    0.0) << std::endl;
+      // for (auto it = rates.begin(); it != rates.begin() + cells.size()*3; ++it) std::cout << (*it) << ' '; std::cout << std::endl;
+      // for (int i = 0; i < SUM_DEPTH; ++i) {
+      //   for (auto x: rate_sums[i]) std::cout << x << ' '; std::cout << std::endl;
+      // }
 
       // Take timestep dependent on rate of all events
       // event_rate = std::reduce(rates.begin(), rates.end(), 0.0); // not commonly supported
       event_rate = std::accumulate(rate_sums.back().begin(),
                                    rate_sums.back().begin() + sum_grid.x,
                                    0.0);
-      std::cout << interval_timer() << std::endl; //<< '\t';
-      std::cout << "er" << event_rate << std::endl;
+      std::cout << interval_timer() << '\t';
+      // std::cout << "er" << event_rate << std::endl;
       float dt = std::exponential_distribution<float>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;

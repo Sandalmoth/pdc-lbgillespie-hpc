@@ -5,7 +5,7 @@
 int main() {
   std::cout << sizeof(Cell) << std::endl;
   LB<Cell> lb;
-  for (int i = 0; i < 100; ++i) {
+  for (int i = 0; i < 3000000; ++i) {
     lb.add_cell(Cell());
   }
   lb.simulate(0.0000001);
