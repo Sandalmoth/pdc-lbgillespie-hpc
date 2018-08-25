@@ -8,15 +8,11 @@
 
 class Cell {
 public:
-  Cell() {
-    // continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
-  }
+  Cell() { }
 
   Cell(unsigned int discrete, float continuous)
     : discrete(discrete)
-    , continuous(continuous) {
-    // continuous_mutation_distribution = std::normal_distribution<float>(0.0, 0.1);
-  }
+    , continuous(continuous) { }
 
 
   static size_t get_discrete_options() {
@@ -33,7 +29,6 @@ public:
 
 
   // Note possibility of time dependence (double t)
-  // and evolutionary game theory (first, last of list of all other cells)
 
 
   __host__ __device__ float get_birth_rate(float t) {
@@ -66,7 +61,6 @@ public:
 
   template <typename TRng>
   void mutate_continuous(TRng rng) {
-    // continuous += continuous_mutation_distribution(rng);
     continuous += std::normal_distribution<float>(0.0, 0.1)(rng);
   }
 
@@ -76,12 +70,7 @@ private:
   unsigned int discrete = 0;
   float continuous = 1.0;
 
-  // std::normal_distribution<float> continuous_mutation_distribution;
-
 };
-
-
-__global__ void get_rates(Cell *, float *, size_t, float);
 
 
 #endif
