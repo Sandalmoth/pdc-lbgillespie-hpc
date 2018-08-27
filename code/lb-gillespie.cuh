@@ -3,13 +3,13 @@
 
 
 #include <array>
-#include <chrono>
 #include <iostream>
 #include <numeric>
 #include <random>
 
 #include "cub/cub.cuh"
 
+#include "timers.h"
 #include "xoshiro256ss.h"
 
 
@@ -108,6 +108,12 @@ public:
   }
 
 
+  template <typename T>
+  void seed(T seed) {
+    rng.seed(seed);
+  }
+
+
   void add_cell(const TCell &cell) {
     cells.emplace_back(cell);
   }
@@ -119,28 +125,7 @@ public:
     // Define timer constructs.
     // IntervalTimer operator() gives time since last call
     // StartTimer operator() gives time since construction
-    struct IntervalTimer {
-      IntervalTimer() {
-        prev = std::chrono::steady_clock::now();
-      }
-      long long operator()() {
-        auto diff = std::chrono::steady_clock::now() - prev;
-        prev = std::chrono::steady_clock::now();
-        return std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
-      }
-      std::chrono::steady_clock::time_point prev;
-    };
     IntervalTimer interval_timer;
-    struct StartTimer {
-      StartTimer() {
-        start = std::chrono::steady_clock::now();
-      }
-      long long operator()() {
-        auto diff = std::chrono::steady_clock::now() - start;
-        return std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
-      }
-      std::chrono::steady_clock::time_point start;
-    };
     StartTimer start_timer;
 
     // Print output header
@@ -180,7 +165,7 @@ public:
 
     // run simulation for given interval
     while (t < t_end) {
-      std::cout << "begin " << t << '/' << t_end << '\t' << interval_timer() << " \t";
+      // std::cout << "begin " << t << '/' << t_end << '\t' << interval_timer() << " \t";
 
       // Fetch birth, mutation, and death rates for all cells
       // Store rates in order (birth without mutation, birth with mutation, death)
@@ -190,19 +175,19 @@ public:
       if (true) {
 
         // std::cout << cells.size();
-        std::cout << "c\t";
+        // std::cout << "c\t";
 
         rate_grid.x = divup(cells.size(), BLOCK_SIZE);
 
         // large population; copy to gpu and calculate rates in parallel
         cudaMemcpy(d_cells, cells.data(), cells.size() * sizeof(TCell), cudaMemcpyHostToDevice);
-        std::cout << interval_timer() << '\t';
+        // std::cout << interval_timer() << '\t';
         get_rates<<<rate_grid, rate_block>>>(d_cells, d_rates, cells.size(), t + estimated_half_wait);
         cudaDeviceSynchronize();
-        std::cout << interval_timer() << '\t';
+        // std::cout << interval_timer() << '\t';
         cudaMemcpy(rates.data(), d_rates, cells.size() * 3 * sizeof(float), cudaMemcpyDeviceToHost);
 
-        std::cout << interval_timer() << '\t';
+        // std::cout << interval_timer() << '\t';
         // get partial sums of the rates
         int n_rates_prev = cells.size() * 3;
         sum_grid.x = divup(cells.size() * 3, SUM_BLOCK_SIZE);
@@ -229,14 +214,14 @@ public:
           //                                          0.0) << std::endl;
         }
 
-        std::cout << interval_timer() << '\t';
+        // std::cout << interval_timer() << '\t';
         // std::cout << std::endl;
         // for (size_t i = 0; i < cells.size() * 3; ++i) std::cout << rates[i] << ' ';
         // std::cout << std::endl;
 
       } else {
 
-        std::cout << "s\t";
+        // std::cout << "s\t";
 
         // small population; run sequentiailly
         for (size_t i = 0; i < cells.size(); ++i) {
@@ -254,7 +239,7 @@ public:
 
       }
 
-      std::cout << interval_timer() << '\t';
+      // std::cout << interval_timer() << '\t';
 
       // std::cout << "cuda finished" << std::endl;
 
@@ -271,16 +256,16 @@ public:
       event_rate = std::accumulate(rate_sums.back().begin(),
                                    rate_sums.back().begin() + sum_grid.x,
                                    0.0);
-      std::cout << interval_timer() << '\t';
+      // std::cout << interval_timer() << '\t';
       // std::cout << "er" << event_rate << std::endl;
       float dt = std::exponential_distribution<float>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;
-      std::cout << interval_timer() << '\t';
+      // std::cout << interval_timer() << '\t';
 
       // Select an event to perform based on their rates
       size_t event = choose_event(rates, rate_sums, event_rate);
-      std::cout << interval_timer() << '\t';
+      // std::cout << interval_timer() << '\t';
       size_t event_type = event % 3;
       size_t event_cell = event / 3;
       switch (event_type) {
@@ -300,7 +285,7 @@ public:
         cells.pop_back();
         break;
       }
-      std::cout << interval_timer() << std::endl;
+      // std::cout << interval_timer() << std::endl;
 
       if (t > next_record) {
         std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << std::endl;

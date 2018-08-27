@@ -40,11 +40,11 @@ public:
   }
 
   __host__ __device__ float get_birth_interaction() {
-    return 0.0;
+    return 0.00005;
   }
 
   __host__ __device__ float get_death_interaction() {
-    return 0.00010;
+    return 0.00005;
   }
 
   __host__ __device__ float get_discrete_mutation_rate() {
