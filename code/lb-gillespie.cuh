@@ -64,10 +64,7 @@ T1 divup(T1 num, T2 den) {
 template <typename TCell, typename TRng=vigna::xoshiro256ss>
 class LB {
 private:
-  size_t choose_event(const float *rates,
-                      size_t n_rates,
-                      const std::array<float *, SUM_DEPTH> &partial_sums,
-                      const std::array<size_t, SUM_DEPTH> &partial_sum_sizes,
+  size_t choose_event(size_t n_rates,
                       double sum) {
     // Because the std::discrete_distribution is very slow
     // (probably because it copies the weight vector)
@@ -81,19 +78,32 @@ private:
     for (int i = SUM_DEPTH - 1; i >= 0; --i) {
       // for (auto x: partial_sums[i]) std::cout << x << ' ';
       // std::cout << std::endl;
-      for (size_t u = j; u < partial_sum_sizes[i]; ++u) {
-        cumsum += partial_sums[i][u];
+      for (size_t u = j; u < n_sums[i]; ++u) {
+        cumsum += rate_sums[i][u];
         // std::cout << "  " << u << ' ' << cumsum << std::endl;
         if (cumsum > k) {
-          cumsum -= partial_sums[i][u];
+          cumsum -= rate_sums[i][u];
           break;
         }
         ++j;
       }
       j *= SUM_BLOCK_SIZE;
+      if (i > 0) {
+        cudaMemcpyAsync(rate_sums[i - 1] + j,
+                        d_rate_sums[i - 1] + j,
+                        SUM_BLOCK_SIZE * sizeof(float),
+                        cudaMemcpyDeviceToHost, stream);
+      } else {
+        cudaMemcpyAsync(rates + j,
+                        d_rates + j,
+                        SUM_BLOCK_SIZE * sizeof(float),
+                        cudaMemcpyDeviceToHost, stream);
+      }
+      cudaStreamSynchronize(stream);
       // std::cout << i << ':' << j << std::endl;
     }
     // std::cout << j << ' ' << cumsum << std::endl;
+
     for (size_t i = j; i < n_rates; ++i) {
       cumsum += rates[i];
       if (cumsum > k)
@@ -154,12 +164,6 @@ public:
     cudaStreamCreate(&stream);
 
     // Allocate device memory and corresponding host memory
-    float *rates;
-    std::array<float *, SUM_DEPTH> rate_sums;
-    std::array<float *, SUM_DEPTH> d_rate_sums;
-    std::array<size_t, SUM_DEPTH> n_sums;
-    float *d_rates = nullptr;
-    TCell *d_cells = nullptr;
     cudaMalloc(&d_rates, sizeof(float) * MAX_RATES);
     cudaMalloc(&d_cells, sizeof(TCell) * MAX_CELLS);
     cudaMallocHost(&rates, sizeof(float) * MAX_RATES);
@@ -173,6 +177,10 @@ public:
     // avoid reallocation and allow flexibility by scoping here
     double estimated_half_wait = 0.0;
     double event_rate = 0.0;
+
+    // Copy initial state of cells to device
+    cudaMemcpyAsync(d_cells, cells, n_cells * sizeof(TCell), cudaMemcpyHostToDevice, stream);
+    cudaStreamSynchronize(stream);
 
     // run simulation for given interval
     while (t < t_end) {
@@ -191,12 +199,12 @@ public:
         rate_grid.x = divup(n_cells, BLOCK_SIZE);
 
         // large population; copy to gpu and calculate rates in parallel
-        cudaMemcpyAsync(d_cells, cells, n_cells * sizeof(TCell), cudaMemcpyHostToDevice, stream);
+        // cudaMemcpyAsync(d_cells, cells, n_cells * sizeof(TCell), cudaMemcpyHostToDevice, stream);
         // std::cout << interval_timer() << '\t';
         get_rates<<<rate_grid, rate_block, 0, stream>>>(d_cells, d_rates, n_cells, t + estimated_half_wait);
         // cudaDeviceSynchronize();
         // std::cout << interval_timer() << '\t';
-        cudaMemcpyAsync(rates, d_rates, n_cells * 3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
+        // cudaMemcpyAsync(rates, d_rates, n_cells * 3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
 
         // std::cout << interval_timer() << '\t';
         // get partial sums of the rates
@@ -206,7 +214,7 @@ public:
         // std::cout << std::endl;
         // std::cout << sum_grid.x << ' ' << rate_sums[0].size() << std::endl;
         partial_sum<<<sum_grid, sum_block, 0, stream>>>(d_rates, d_rate_sums[0], n_rates_prev);
-        cudaMemcpyAsync(rate_sums[0], d_rate_sums[0], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost, stream);
+        // cudaMemcpyAsync(rate_sums[0], d_rate_sums[0], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost, stream);
         // std::cout << "{ ";
         // for (auto x: rate_sums[0]) std::cout << x << ' ';
         // std::cout << '}' << std::endl;
@@ -219,11 +227,21 @@ public:
           n_sums[i] = sum_grid.x;
           // std::cout << sum_grid.x << ' ' << rate_sums[i].size() << std::endl;
           partial_sum<<<sum_grid, sum_block, 0, stream>>>(d_rate_sums[i-1], d_rate_sums[i], n_rates_prev);
-          cudaMemcpyAsync(rate_sums[i], d_rate_sums[i], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost, stream);
+          // cudaMemcpyAsync(rate_sums[i], d_rate_sums[i], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost, stream);
           // std::cout << i << ' ' << std::accumulate(rate_sums[i].begin(),
           //                                          rate_sums[i].begin() + sum_grid.x,
           //                                          0.0) << std::endl;
+
+          // cudaMemcpyAsync(rates, d_rates, n_cells * 3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
         }
+
+        cudaMemcpyAsync(rate_sums[SUM_DEPTH - 1],
+                        d_rate_sums[SUM_DEPTH - 1],
+                        n_sums[SUM_DEPTH - 1] * sizeof(float),
+                        cudaMemcpyDeviceToHost, stream);
+        // for (int i = 0; i < SUM_DEPTH; ++i) {
+        //   cudaMemcpyAsync(rate_sums[i], d_rate_sums[i], n_sums[i] * sizeof(float), cudaMemcpyDeviceToHost, stream);
+        // }
 
         cudaStreamSynchronize(stream);
 
@@ -277,7 +295,7 @@ public:
       // std::cout << interval_timer() << '\t';
 
       // Select an event to perform based on their rates
-      size_t event = choose_event(rates, n_cells * 3, rate_sums, n_sums, event_rate);
+      size_t event = choose_event(n_cells * 3, event_rate);
       // std::cout << interval_timer() << '\t';
       size_t event_type = event % 3;
       size_t event_cell = event / 3;
@@ -286,15 +304,20 @@ public:
         cells[n_cells++] = cells[event_cell];
         cells[event_cell].mutate_continuous(rng);
         cells[n_cells-1].mutate_continuous(rng);
+        cudaMemcpyAsync(d_cells + event_cell, cells + event_cell, sizeof(TCell), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(d_cells + n_cells - 1, cells + n_cells - 1, sizeof(TCell), cudaMemcpyHostToDevice, stream);
         break;
       case 1: // birth with mutation
         cells[n_cells++] = cells[event_cell];
         cells[event_cell].mutate_continuous(rng);
         cells[n_cells-1].mutate_discrete(rng);
         cells[n_cells-1].mutate_continuous(rng);
+        cudaMemcpyAsync(d_cells + event_cell, cells + event_cell, sizeof(TCell), cudaMemcpyHostToDevice, stream);
+        cudaMemcpyAsync(d_cells + n_cells - 1, cells + n_cells - 1, sizeof(TCell), cudaMemcpyHostToDevice, stream);
         break;
       case 2: //death
         std::swap(cells[event_cell], cells[n_cells-1]);
+        cudaMemcpyAsync(d_cells + event_cell, cells + event_cell, sizeof(TCell), cudaMemcpyHostToDevice, stream);
         --n_cells;
         break;
       }
@@ -322,7 +345,15 @@ public:
 
 private:
   TRng rng;
-  TCell *cells;
+
+  TCell *cells = nullptr;
+  float *rates = nullptr;
+  std::array<float *, SUM_DEPTH> rate_sums;
+  std::array<float *, SUM_DEPTH> d_rate_sums;
+  std::array<size_t, SUM_DEPTH> n_sums;
+  float *d_rates = nullptr;
+  TCell *d_cells = nullptr;
+
   size_t n_cells = 0;
 
   float t = 0;
