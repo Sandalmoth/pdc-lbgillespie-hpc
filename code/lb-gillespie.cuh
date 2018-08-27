@@ -118,12 +118,12 @@ public:
 
     // Define timer constructs.
     // IntervalTimer operator() gives time since last call
-    // start_timer operator() gives time since construction
+    // StartTimer operator() gives time since construction
     struct IntervalTimer {
       IntervalTimer() {
         prev = std::chrono::steady_clock::now();
       }
-      auto operator()() {
+      long long operator()() {
         auto diff = std::chrono::steady_clock::now() - prev;
         prev = std::chrono::steady_clock::now();
         return std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
@@ -131,9 +131,17 @@ public:
       std::chrono::steady_clock::time_point prev;
     };
     IntervalTimer interval_timer;
-    auto start_timer = [start = std::chrono::steady_clock::now()]() {
-      return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count();
+    struct StartTimer {
+      StartTimer() {
+        start = std::chrono::steady_clock::now();
+      }
+      long long operator()() {
+        auto diff = std::chrono::steady_clock::now() - start;
+        return std::chrono::duration_cast<std::chrono::microseconds>(diff).count();
+      }
+      std::chrono::steady_clock::time_point start;
     };
+    StartTimer start_timer;
 
     // Print output header
     std::cout.precision(3);
