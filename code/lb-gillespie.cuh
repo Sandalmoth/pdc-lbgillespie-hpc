@@ -38,6 +38,7 @@ __global__ void get_rates(TCell *cells, float *rates, size_t n, float t_est) {
 }
 
 
+// Calculate the sum of SUM_BLOCK_SIZE consecutive elements from rates and store them in sum
 __global__ void partial_sum(float *rates, float *sum, size_t n) {
   int i = threadIdx.x + blockIdx.x*blockDim.x;
 
@@ -46,10 +47,7 @@ __global__ void partial_sum(float *rates, float *sum, size_t n) {
   float this_rate = 0;
   if (i < n)
     this_rate = rates[i];
-  // printf(" (%i %i %lu %f)", threadIdx.x, i, n, this_rate);
   float result = BR(temp).Sum(this_rate, n);
-  // if (threadIdx.x == 0)
-    // printf(" [%i %f]", i, result);
   if (threadIdx.x == 0)
     sum[blockIdx.x] = result;
 }
@@ -72,15 +70,11 @@ private:
     // Having vectors with partial sums speeds up the process (to log(N) i think)
     // since larger steps can be taken at first
     double k = std::uniform_real_distribution<double>(0, sum)(rng);
-    // std::cout << std::endl << k << "->" << sum << std::endl;
     double cumsum = 0.0;
     int j = 0;
     for (int i = SUM_DEPTH - 1; i >= 0; --i) {
-      // for (auto x: partial_sums[i]) std::cout << x << ' ';
-      // std::cout << std::endl;
       for (size_t u = j; u < n_sums[i]; ++u) {
         cumsum += rate_sums[i][u];
-        // std::cout << "  " << u << ' ' << cumsum << std::endl;
         if (cumsum > k) {
           cumsum -= rate_sums[i][u];
           break;
@@ -88,6 +82,7 @@ private:
         ++j;
       }
       j *= SUM_BLOCK_SIZE;
+      // Fetch the section of rates or partial sums where the event occurs
       if (i > 0) {
         cudaMemcpyAsync(rate_sums[i - 1] + j,
                         d_rate_sums[i - 1] + j,
@@ -100,10 +95,9 @@ private:
                         cudaMemcpyDeviceToHost, stream);
       }
       cudaStreamSynchronize(stream);
-      // std::cout << i << ':' << j << std::endl;
     }
-    // std::cout << j << ' ' << cumsum << std::endl;
 
+    // Find the exact position in the rates vector
     for (size_t i = j; i < n_rates; ++i) {
       cumsum += rates[i];
       if (cumsum > k)
@@ -184,119 +178,49 @@ public:
 
     // run simulation for given interval
     while (t < t_end) {
-      // std::cout << "begin " << t << '/' << t_end << '\t' << interval_timer() << " \t";
-
       // Fetch birth, mutation, and death rates for all cells
       // Store rates in order (birth without mutation, birth with mutation, death)
       // With birth interaction overflowing into death rate if it is bigger than the birth rate
 
-      // select cuda or sequential calculation
-      if (true) {
+      rate_grid.x = divup(n_cells, BLOCK_SIZE);
 
-        // std::cout << n_cells;
-        // std::cout << "c\t";
+      // large population; copy to gpu and calculate rates in parallel
+      get_rates<<<rate_grid, rate_block, 0, stream>>>(d_cells, d_rates, n_cells, t + estimated_half_wait);
 
-        rate_grid.x = divup(n_cells, BLOCK_SIZE);
-
-        // large population; copy to gpu and calculate rates in parallel
-        // cudaMemcpyAsync(d_cells, cells, n_cells * sizeof(TCell), cudaMemcpyHostToDevice, stream);
-        // std::cout << interval_timer() << '\t';
-        get_rates<<<rate_grid, rate_block, 0, stream>>>(d_cells, d_rates, n_cells, t + estimated_half_wait);
-        // cudaDeviceSynchronize();
-        // std::cout << interval_timer() << '\t';
-        // cudaMemcpyAsync(rates, d_rates, n_cells * 3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-
-        // std::cout << interval_timer() << '\t';
-        // get partial sums of the rates
-        int n_rates_prev = n_cells * 3;
-        sum_grid.x = divup(n_cells * 3, SUM_BLOCK_SIZE);
-        n_sums[0] = sum_grid.x;
-        // std::cout << std::endl;
-        // std::cout << sum_grid.x << ' ' << rate_sums[0].size() << std::endl;
-        partial_sum<<<sum_grid, sum_block, 0, stream>>>(d_rates, d_rate_sums[0], n_rates_prev);
-        // cudaMemcpyAsync(rate_sums[0], d_rate_sums[0], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost, stream);
-        // std::cout << "{ ";
-        // for (auto x: rate_sums[0]) std::cout << x << ' ';
-        // std::cout << '}' << std::endl;
-        // std::cout << '0' << ' ' << std::accumulate(rate_sums[0].begin(),
-        //                                            rate_sums[0].begin() + sum_grid.x,
-        //                                            0.0) << std::endl;
-        for (int i = 1; i < SUM_DEPTH; ++i) {
-          n_rates_prev = sum_grid.x;
-          sum_grid.x = divup(sum_grid.x, SUM_BLOCK_SIZE);
-          n_sums[i] = sum_grid.x;
-          // std::cout << sum_grid.x << ' ' << rate_sums[i].size() << std::endl;
-          partial_sum<<<sum_grid, sum_block, 0, stream>>>(d_rate_sums[i-1], d_rate_sums[i], n_rates_prev);
-          // cudaMemcpyAsync(rate_sums[i], d_rate_sums[i], sum_grid.x * sizeof(float), cudaMemcpyDeviceToHost, stream);
-          // std::cout << i << ' ' << std::accumulate(rate_sums[i].begin(),
-          //                                          rate_sums[i].begin() + sum_grid.x,
-          //                                          0.0) << std::endl;
-
-          // cudaMemcpyAsync(rates, d_rates, n_cells * 3 * sizeof(float), cudaMemcpyDeviceToHost, stream);
-        }
-
-        cudaMemcpyAsync(rate_sums[SUM_DEPTH - 1],
-                        d_rate_sums[SUM_DEPTH - 1],
-                        n_sums[SUM_DEPTH - 1] * sizeof(float),
-                        cudaMemcpyDeviceToHost, stream);
-        // for (int i = 0; i < SUM_DEPTH; ++i) {
-        //   cudaMemcpyAsync(rate_sums[i], d_rate_sums[i], n_sums[i] * sizeof(float), cudaMemcpyDeviceToHost, stream);
-        // }
-
-        cudaStreamSynchronize(stream);
-
-        // std::cout << interval_timer() << '\t';
-        // std::cout << std::endl;
-        // for (size_t i = 0; i < n_cells * 3; ++i) std::cout << rates[i] << ' ';
-        // std::cout << std::endl;
-
-      } else {
-
-        // std::cout << "s\t";
-
-        // small population; run sequentiailly
-        for (size_t i = 0; i < n_cells; ++i) {
-          rates[3*i]      = cells[i].get_birth_rate(t + estimated_half_wait)
-                          - (n_cells - 1) * cells[i].get_birth_interaction();
-          rates[3*i + 2]  = -std::min(rates[3*i], 0.0f);
-          rates[3*i]      = std::max(rates[3*i], 0.0f);
-          event_rate += rates[3*i];
-          rates[3*i + 1]  = rates[3*i] * cells[i].get_discrete_mutation_rate();
-          rates[3*i]     -= rates[3*i + 1];
-          rates[3*i + 2] += cells[i].get_death_rate()
-                          + (n_cells - 1) * cells[i].get_death_interaction();
-          event_rate += rates[3*i + 2];
-        }
-
+      // get partial sums of the rates
+      // iteratively collects sets of them by summing either the rates vector or partial_sum vectors
+      int n_rates_prev = n_cells * 3;
+      sum_grid.x = divup(n_cells * 3, SUM_BLOCK_SIZE);
+      n_sums[0] = sum_grid.x;
+      partial_sum<<<sum_grid, sum_block, 0, stream>>>(d_rates, d_rate_sums[0], n_rates_prev);
+      for (int i = 1; i < SUM_DEPTH; ++i) {
+        n_rates_prev = sum_grid.x;
+        sum_grid.x = divup(sum_grid.x, SUM_BLOCK_SIZE);
+        n_sums[i] = sum_grid.x;
+        partial_sum<<<sum_grid, sum_block, 0, stream>>>(d_rate_sums[i-1], d_rate_sums[i], n_rates_prev);
       }
 
-      // std::cout << interval_timer() << '\t';
+      // we need the deepest sum to find the total event rate, and for the first event selection step
+      cudaMemcpyAsync(rate_sums[SUM_DEPTH - 1],
+                      d_rate_sums[SUM_DEPTH - 1],
+                      n_sums[SUM_DEPTH - 1] * sizeof(float),
+                      cudaMemcpyDeviceToHost, stream);
 
-      // std::cout << "cuda finished" << std::endl;
-
-      // std::cout << "rates_sum" << ' ' << std::accumulate(rates.begin(),
-      //                                                    rates.begin() + n_cells*3,
-      //                                                    0.0) << std::endl;
-      // for (auto it = rates.begin(); it != rates.begin() + n_cells*3; ++it) std::cout << (*it) << ' '; std::cout << std::endl;
-      // for (int i = 0; i < SUM_DEPTH; ++i) {
-      //   for (auto x: rate_sums[i]) std::cout << x << ' '; std::cout << std::endl;
-      // }
+      cudaStreamSynchronize(stream);
 
       // Take timestep dependent on rate of all events
       // event_rate = std::reduce(rates.begin(), rates.end(), 0.0); // not commonly supported
       event_rate = std::accumulate(rate_sums.back(),
                                    rate_sums.back() + sum_grid.x,
                                    0.0);
-      // std::cout << interval_timer() << '\t';
-      // std::cout << "er" << event_rate << std::endl;
       float dt = std::exponential_distribution<float>(event_rate)(rng);
       t += dt;
-      estimated_half_wait = 0.5 / event_rate;
-      // std::cout << interval_timer() << '\t';
+      estimated_half_wait = 0.5 / event_rate; // used for calculating time-dependence of rates in the next iteration
 
       // Select an event to perform based on their rates
+      // remember the layout: [birth without mutation, birth with mutation, death]
+      // and ofcourse, the continuous variable always mutates
       size_t event = choose_event(n_cells * 3, event_rate);
-      // std::cout << interval_timer() << '\t';
       size_t event_type = event % 3;
       size_t event_cell = event / 3;
       switch (event_type) {
@@ -316,13 +240,14 @@ public:
         cudaMemcpyAsync(d_cells + n_cells - 1, cells + n_cells - 1, sizeof(TCell), cudaMemcpyHostToDevice, stream);
         break;
       case 2: //death
+        // swap to end and decrement size to effectively destroy cell with minimal movement
         std::swap(cells[event_cell], cells[n_cells-1]);
         cudaMemcpyAsync(d_cells + event_cell, cells + event_cell, sizeof(TCell), cudaMemcpyHostToDevice, stream);
         --n_cells;
         break;
       }
-      // std::cout << interval_timer() << std::endl;
 
+      // Print output
       if (t > next_record) {
         std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << n_cells << std::endl;
         do {
@@ -331,6 +256,7 @@ public:
       }
     }
 
+    // Cleanup of device and pinned host memory
     cudaFree(d_rates);
     cudaFree(d_cells);
     cudaFreeHost(rates);
