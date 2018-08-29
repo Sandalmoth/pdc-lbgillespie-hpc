@@ -7,6 +7,8 @@
 #include <numeric>
 #include <random>
 
+#include "timers.h"
+
 
 template <typename TCell, typename TRng=std::mt19937>
 class LB {
@@ -32,6 +34,12 @@ public:
   }
 
 
+  template <typename T>
+  void seed(T seed) {
+    rng.seed(seed);
+  }
+
+
   void add_cell(const TCell &cell) {
     cells.emplace_back(cell);
   }
@@ -40,21 +48,8 @@ public:
   void simulate(double interval) {
     double t_end = t + interval;
 
-    struct IntervalTimer {
-      IntervalTimer() {
-        prev = std::chrono::steady_clock::now();
-      }
-      auto operator()() {
-        auto diff = std::chrono::steady_clock::now() - prev;
-        prev = std::chrono::steady_clock::now();
-        return std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
-      }
-      std::chrono::steady_clock::time_point prev;
-    };
     IntervalTimer interval_timer;
-    auto start_timer = [start = std::chrono::steady_clock::now()]() {
-      return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count();
-    };
+    StartTimer start_timer;
 
     std::cout.precision(3);
     std::cout << "realtime\tsteptime\ttime\tsize\n";

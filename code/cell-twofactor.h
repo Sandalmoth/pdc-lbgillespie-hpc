@@ -8,15 +8,11 @@
 
 class Cell {
 public:
-  Cell() {
-    continuous_mutation_distribution = std::normal_distribution<double>(0.0, 0.02);
-  }
+  Cell() { }
 
   Cell(size_t discrete, double continuous)
     : discrete(discrete)
-    , continuous(continuous) {
-    continuous_mutation_distribution = std::normal_distribution<double>(0.0, 0.02);
-  }
+    , continuous(continuous) { }
 
 
   static size_t get_discrete_options() {
@@ -44,11 +40,11 @@ public:
   }
 
   double get_birth_interaction() {
-    return 0.0;
+    return 0.00005;
   }
 
   double get_death_interaction() {
-    return 0.00010;
+    return 0.00005;
   }
 
   double get_discrete_mutation_rate() {
@@ -65,16 +61,14 @@ public:
 
   template <typename T>
   void mutate_continuous(T rng) {
-    continuous += continuous_mutation_distribution(rng);
+    continuous += std::normal_distribution<double>(0.0, 0.02)(rng);
   }
 
 
 
 private:
-  size_t discrete = 0;
+  int discrete = 0;
   double continuous = 1.0;
-
-  std::normal_distribution<double> continuous_mutation_distribution;
 
 };
 
