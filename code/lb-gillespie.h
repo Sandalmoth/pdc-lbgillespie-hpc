@@ -14,11 +14,11 @@
 template <typename TCell, typename TRng=vigna::xoshiro256ss>
 class LB {
 private:
-  size_t choose_event(const std::vector<float> &rates, float sum) {
+  size_t choose_event(const std::vector<float> &rates, double sum) {
     // Because the std::discrete_distribution is very slow (probably because it copies the weight vector)
     // I was forced to make my own implementation.
-    float k = std::uniform_real_distribution<float>(0, sum)(rng);
-    float cumsum = 0.0;
+    double k = std::uniform_real_distribution<double>(0, sum)(rng);
+    double cumsum = 0.0;
     for (size_t i = 0; i < rates.size(); ++i) {
       cumsum += rates[i];
       if (cumsum > k)
@@ -61,7 +61,8 @@ public:
 
     std::vector<float> rates; // No need to keep reallocating
 
-    float estimated_half_wait = 0.0;
+    double estimated_half_wait = 0.0;
+    double event_rate = 0.0;
     while (t < t_end) {
       // Fetch birth, mutation, and death rates for all cells
       rates.resize(cells.size() * 3);
@@ -80,7 +81,7 @@ public:
 
       // Take timestep dependent on rate of all events
       // float event_rate = std::reduce(rates.begin(), rates.end(), 0.0);
-      float event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
+      event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
       float dt = std::exponential_distribution<float>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;
