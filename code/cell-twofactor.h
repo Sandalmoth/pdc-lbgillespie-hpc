@@ -10,7 +10,7 @@ class Cell {
 public:
   Cell() { }
 
-  Cell(size_t discrete, double continuous)
+  Cell(unsigned int discrete, float continuous)
     : discrete(discrete)
     , continuous(continuous) { }
 
@@ -23,32 +23,31 @@ public:
   size_t get_discrete_type() {
     return discrete;
   }
-  double get_continuous_type() {
+  float get_continuous_type() {
     return continuous;
   }
 
 
-  // Note possibility of time dependence (double t)
-  // and evolutionary game theory (first, last of list of all other cells)
+  // Note possibility of time dependence (float t)
 
-  double get_birth_rate(double t) {
+  float get_birth_rate(float t) {
     return 0.5 + discrete*2 + continuous;
   }
 
-  double get_death_rate() {
+  float get_death_rate() {
     return 0.1;
   }
 
-  double get_birth_interaction() {
+  float get_birth_interaction() {
     return 0.00005;
   }
 
-  double get_death_interaction() {
+  float get_death_interaction() {
     return 0.00005;
   }
 
-  double get_discrete_mutation_rate() {
-    return 0.000001 * std::max(continuous, 0.0);
+  float get_discrete_mutation_rate() {
+    return 0.000001 * std::max(continuous, 0.0f);
   }
 
 
@@ -61,14 +60,14 @@ public:
 
   template <typename T>
   void mutate_continuous(T rng) {
-    continuous += std::normal_distribution<double>(0.0, 0.02)(rng);
+    continuous += std::normal_distribution<float>(0.0, 0.1)(rng);
   }
 
 
 
 private:
-  int discrete = 0;
-  double continuous = 1.0;
+  unsigned int discrete = 0;
+  float continuous = 1.0;
 
 };
 

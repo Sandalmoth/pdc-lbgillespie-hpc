@@ -13,11 +13,11 @@
 template <typename TCell, typename TRng=std::mt19937>
 class LB {
 private:
-  size_t choose_event(const std::vector<double> &rates, double sum) {
+  size_t choose_event(const std::vector<float> &rates, float sum) {
     // Because the std::discrete_distribution is very slow (probably because it copies the weight vector)
     // I was forced to make my own implementation.
-    double k = std::uniform_real_distribution<double>(0, sum)(rng);
-    double cumsum = 0.0;
+    float k = std::uniform_real_distribution<float>(0, sum)(rng);
+    float cumsum = 0.0;
     for (size_t i = 0; i < rates.size(); ++i) {
       cumsum += rates[i];
       if (cumsum > k)
@@ -45,8 +45,8 @@ public:
   }
 
 
-  void simulate(double interval) {
-    double t_end = t + interval;
+  void simulate(float interval) {
+    float t_end = t + interval;
 
     IntervalTimer interval_timer;
     StartTimer start_timer;
@@ -54,13 +54,13 @@ public:
     std::cout.precision(3);
     std::cout << "realtime\tsteptime\ttime\tsize\n";
     std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << '\n';
-    double record_interval = 0.1;
-    double next_record = t + record_interval;
+    float record_interval = 0.1;
+    float next_record = t + record_interval;
 
 
-    std::vector<double> rates; // No need to keep reallocating
+    std::vector<float> rates; // No need to keep reallocating
 
-    double estimated_half_wait = 0.0;
+    float estimated_half_wait = 0.0;
     while (t < t_end) {
       // Fetch birth, mutation, and death rates for all cells
       rates.resize(cells.size() * 3);
@@ -69,8 +69,8 @@ public:
         // With birth interaction overflowing into death rate if it is bigger than the birth rate
         rates[3*i]      = cells[i].get_birth_rate(t + estimated_half_wait)
                         - (cells.size() - 1) * cells[i].get_birth_interaction();
-        rates[3*i + 2]  = -std::min(rates[3*i], 0.0);
-        rates[3*i]      = std::max(rates[3*i], 0.0);
+        rates[3*i + 2]  = -std::min(rates[3*i], 0.0f);
+        rates[3*i]      = std::max(rates[3*i], 0.0f);
         rates[3*i + 1]  = rates[3*i] * cells[i].get_discrete_mutation_rate();
         rates[3*i]     -= rates[3*i + 1];
         rates[3*i + 2] += cells[i].get_death_rate()
@@ -78,9 +78,9 @@ public:
       }
 
       // Take timestep dependent on rate of all events
-      // double event_rate = std::reduce(rates.begin(), rates.end(), 0.0);
-      double event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
-      double dt = std::exponential_distribution<double>(event_rate)(rng);
+      // float event_rate = std::reduce(rates.begin(), rates.end(), 0.0);
+      float event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
+      float dt = std::exponential_distribution<float>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;
 
@@ -118,7 +118,7 @@ private:
   TRng rng;
   std::vector<TCell> cells;
 
-  double t = 0;
+  float t = 0;
 
 };
 
