@@ -92,10 +92,12 @@ public:
       switch (event_type) {
       case 0: // birth without mutation
         cells.emplace_back(cells[event_cell]);
+        cells[event_cell].mutate_continuous(rng);
         cells.back().mutate_continuous(rng);
         break;
       case 1: // birth with mutation
         cells.emplace_back(cells[event_cell]);
+        cells[event_cell].mutate_continuous(rng);
         cells.back().mutate_discrete(rng);
         cells.back().mutate_continuous(rng);
         break;
