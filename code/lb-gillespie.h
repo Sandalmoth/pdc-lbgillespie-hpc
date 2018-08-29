@@ -8,9 +8,10 @@
 #include <random>
 
 #include "timers.h"
+#include "xoshiro256ss.h"
 
 
-template <typename TCell, typename TRng=std::mt19937>
+template <typename TCell, typename TRng=vigna::xoshiro256ss>
 class LB {
 private:
   size_t choose_event(const std::vector<float> &rates, float sum) {

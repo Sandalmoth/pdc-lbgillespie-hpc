@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0.0)
 
-add_executable(two twofactor.cpp)
+add_executable(two twofactor.cpp xoshiro256ss.cc)
 
 # Compilation flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -std=c++11")
