@@ -108,7 +108,8 @@ private:
 
 
 public:
-  LB() {
+  LB(int id)
+    : id(id) {
     std::random_device rd;
     rng.seed(rd());
     cudaMallocHost(&cells, MAX_CELLS * sizeof(TCell));
@@ -140,9 +141,7 @@ public:
     StartTimer start_timer;
 
     // Print output header
-    std::cout.precision(3);
-    std::cout << "realtime\tsteptime\ttime\tsize\n";
-    std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << n_cells << '\n';
+    printf("%i\t%lld\t%lld\t%f\t%lu\n", id, start_timer(), interval_timer(), t, n_cells);
 
     // Setup printing parameters
     double record_interval = 0.1;
@@ -247,7 +246,7 @@ public:
         if (n_cells == 0) {
           // Population died out, exit gracefully
           // (causes horrible pointer errors when it happens if not checked for)
-          std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << n_cells << std::endl;
+          printf("%i\t%lld\t%lld\t%f\t%lu\n", id, start_timer(), interval_timer(), t, n_cells);
           cudaFree(d_rates);
           cudaFree(d_cells);
           cudaFreeHost(rates);
@@ -263,7 +262,7 @@ public:
 
       // Print output
       if (t > next_record) {
-        std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << n_cells << std::endl;
+          printf("%i\t%lld\t%lld\t%f\t%lu\n", id, start_timer(), interval_timer(), t, n_cells);
         do {
           next_record += record_interval;
         } while (next_record < t);
@@ -284,6 +283,8 @@ public:
 
 
 private:
+  int id;
+
   TRng rng;
 
   TCell *cells = nullptr;

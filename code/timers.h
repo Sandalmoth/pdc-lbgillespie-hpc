@@ -24,7 +24,7 @@ struct StartTimer {
   }
   long long operator()() {
     auto diff = std::chrono::steady_clock::now() - start;
-    return std::chrono::duration_cast<std::chrono::seconds>(diff).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(diff).count();
   }
   std::chrono::steady_clock::time_point start;
 };
