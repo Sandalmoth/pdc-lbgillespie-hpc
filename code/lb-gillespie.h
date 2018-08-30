@@ -46,8 +46,8 @@ public:
   }
 
 
-  void simulate(float interval) {
-    float t_end = t + interval;
+  void simulate(double interval) {
+    double t_end = t + interval;
 
     IntervalTimer interval_timer;
     StartTimer start_timer;
@@ -55,8 +55,8 @@ public:
     std::cout.precision(3);
     std::cout << "realtime\tsteptime\ttime\tsize\n";
     std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << '\n';
-    float record_interval = 0.1;
-    float next_record = t + record_interval;
+    double record_interval = 0.1;
+    double next_record = t + record_interval;
 
 
     std::vector<float> rates; // No need to keep reallocating
@@ -69,7 +69,7 @@ public:
       for (size_t i = 0; i < cells.size(); ++i) {
         // Store rates in order (birth without mutation, birth with mutation, death)
         // With birth interaction overflowing into death rate if it is bigger than the birth rate
-        rates[3*i]      = cells[i].get_birth_rate(t + estimated_half_wait)
+        rates[3*i]      = cells[i].get_birth_rate(static_cast<float>(t + estimated_half_wait))
                         - (cells.size() - 1) * cells[i].get_birth_interaction();
         rates[3*i + 2]  = -std::min(rates[3*i], 0.0f);
         rates[3*i]      = std::max(rates[3*i], 0.0f);
@@ -82,7 +82,7 @@ public:
       // Take timestep dependent on rate of all events
       // float event_rate = std::reduce(rates.begin(), rates.end(), 0.0);
       event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
-      float dt = std::exponential_distribution<float>(event_rate)(rng);
+      double dt = std::exponential_distribution<double>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;
 
@@ -122,7 +122,7 @@ private:
   TRng rng;
   std::vector<TCell> cells;
 
-  float t = 0;
+  double t = 0;
 
 };
 
