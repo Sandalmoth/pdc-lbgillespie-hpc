@@ -109,6 +109,11 @@ public:
       case 2: //death
         std::swap(cells[event_cell], cells.back());
         cells.pop_back();
+        if (cells.size() == 0) {
+          // Dead population, exit gracefully
+          std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << std::endl;
+          return;
+        }
         break;
       }
 
