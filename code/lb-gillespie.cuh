@@ -130,8 +130,8 @@ public:
   }
 
 
-  void simulate(float interval) {
-    float t_end = t + interval;
+  void simulate(double interval) {
+    double t_end = t + interval;
 
     // Define timer constructs.
     // IntervalTimer operator() gives time since last call
@@ -145,8 +145,8 @@ public:
     std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << n_cells << '\n';
 
     // Setup printing parameters
-    float record_interval = 0.1;
-    float next_record = t + record_interval;
+    double record_interval = 0.1;
+    double next_record = t + record_interval;
 
     // Define cuda grids
     dim3 rate_grid(divup(MAX_RATES, BLOCK_SIZE));
@@ -185,7 +185,7 @@ public:
       rate_grid.x = divup(n_cells, BLOCK_SIZE);
 
       // large population; copy to gpu and calculate rates in parallel
-      get_rates<<<rate_grid, rate_block, 0, stream>>>(d_cells, d_rates, n_cells, t + estimated_half_wait);
+      get_rates<<<rate_grid, rate_block, 0, stream>>>(d_cells, d_rates, n_cells, static_cast<float>(t + estimated_half_wait));
 
       // get partial sums of the rates
       // iteratively collects sets of them by summing either the rates vector or partial_sum vectors
@@ -213,7 +213,7 @@ public:
       event_rate = std::accumulate(rate_sums.back(),
                                    rate_sums.back() + sum_grid.x,
                                    0.0);
-      float dt = std::exponential_distribution<float>(event_rate)(rng);
+      double dt = std::exponential_distribution<double>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate; // used for calculating time-dependence of rates in the next iteration
 
@@ -282,7 +282,7 @@ private:
 
   size_t n_cells = 0;
 
-  float t = 0;
+  double t = 0;
   cudaStream_t stream;
 
 };
