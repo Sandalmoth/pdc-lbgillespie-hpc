@@ -13,8 +13,8 @@
 #include "xoshiro256ss.h"
 
 
-#define MAX_RATES  15000000
-#define MAX_CELLS   5000000
+#define MAX_RATES   6000000
+#define MAX_CELLS   2000000
 #define BLOCK_SIZE      256
 #define SUM_BLOCK_SIZE  128
 #define SUM_DEPTH         2
@@ -223,7 +223,6 @@ public:
       size_t event = choose_event(n_cells * 3, event_rate);
       size_t event_type = event % 3;
       size_t event_cell = event / 3;
-      std::cout << event << ' ' << event_type << ' ' << event_cell << std::endl;
       switch (event_type) {
       case 0: // birth without mutation
         cells[n_cells++] = cells[event_cell];
