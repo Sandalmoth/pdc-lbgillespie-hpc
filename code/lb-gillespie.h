@@ -29,7 +29,8 @@ private:
 
 
 public:
-  LB() {
+  LB(int id)
+    : id(id) {
     std::random_device rd;
     rng.seed(rd());
   }
@@ -52,9 +53,7 @@ public:
     IntervalTimer interval_timer;
     StartTimer start_timer;
 
-    std::cout.precision(3);
-    std::cout << "realtime\tsteptime\ttime\tsize\n";
-    std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << '\n';
+    printf("%i\t%lld\t%lld\t%f\t%lu\n", id, start_timer(), interval_timer(), t, cells.size());
     double record_interval = 0.1;
     double next_record = t + record_interval;
 
@@ -111,14 +110,14 @@ public:
         cells.pop_back();
         if (cells.size() == 0) {
           // Dead population, exit gracefully
-          std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << std::endl;
+          printf("%i\t%lld\t%lld\t%f\t%lu\n", id, start_timer(), interval_timer(), t, cells.size());
           return;
         }
         break;
       }
 
       if (t > next_record) {
-        std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << cells.size() << std::endl;
+        printf("%i\t%lld\t%lld\t%f\t%lu\n", id, start_timer(), interval_timer(), t, cells.size());
         do {
           next_record += record_interval;
         } while (next_record < t);
@@ -128,6 +127,8 @@ public:
 
 
 private:
+  int id;
+
   TRng rng;
   std::vector<TCell> cells;
 

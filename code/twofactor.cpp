@@ -27,6 +27,13 @@ struct Arguments {
 };
 
 
+struct Simdata {
+  int index;
+  int thread_id;
+  long long time;
+};
+
+
 int main(int argc, char **argv) {
 
   mt19937 seed_rng;
@@ -69,7 +76,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  cout << a.starting_population << ' ' << a.t_end << ' ' << a.num_cores << ' ' << a.num_simulations << ' ' << a.seed << endl;
 
   seed_rng.seed(a.seed);
   vector<unsigned int> seeds;
@@ -79,17 +85,34 @@ int main(int argc, char **argv) {
   StartTimer start_timer;
   IntervalTimer interval_timer;
 
+  vector<Simdata> simdata;
+  simdata.resize(a.num_simulations);
+
+  cout << " --- TIMELINES [tsv] --- \n";
+  cout << "index\trealtime\tsteptime\ttime\tsize" << endl;
+
 #pragma omp parallel for num_threads(a.num_cores) private(interval_timer)
   for (int j = 0; j < a.num_simulations; ++j) {
     int id = omp_get_thread_num();
-    LB<Cell> lb;
+    LB<Cell> lb(j);
     for (int i = 0; i < a.starting_population; ++i) {
       lb.add_cell(Cell());
     }
     lb.seed(seeds[j]);
     lb.simulate(a.t_end);
-    cout << id << ':' << interval_timer() << endl;
+    simdata[j] = Simdata{j, id, interval_timer()};
   }
 
-  cout << start_timer() << endl;
+  cout << endl << " --- SIMDATA [tsv] --- \n";
+  cout << "index\tthread_id\ttime\tseed\n";
+  for (int j = 0; j < a.num_simulations; ++j)
+    cout << simdata[j].index << '\t' << simdata[j].thread_id << '\t' << simdata[j].time << '\t' << seeds[j] << '\n';
+
+  cout << "\n --- FOOTER [toml] --- " << endl;
+  cout << "starting_population = " << a.starting_population << '\n'
+       << "simulation_time = " << a.t_end << '\n'
+       << "num_cores = " << a.num_cores << '\n'
+       << "num_simulations = " << a.num_simulations << '\n'
+       << "rng_seed = " << a.seed << '\n'
+       << "total_time = " << start_timer() << endl;
 }
