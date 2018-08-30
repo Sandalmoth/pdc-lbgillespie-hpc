@@ -66,6 +66,7 @@ public:
     while (t < t_end) {
       // Fetch birth, mutation, and death rates for all cells
       rates.resize(cells.size() * 3);
+      event_rate = 0.0;
       for (size_t i = 0; i < cells.size(); ++i) {
         // Store rates in order (birth without mutation, birth with mutation, death)
         // With birth interaction overflowing into death rate if it is bigger than the birth rate
@@ -74,14 +75,17 @@ public:
         rates[3*i + 2]  = -std::min(rates[3*i], 0.0f);
         rates[3*i]      = std::max(rates[3*i], 0.0f);
         rates[3*i + 1]  = rates[3*i] * cells[i].get_discrete_mutation_rate();
-        rates[3*i]     -= rates[3*i + 1];
         rates[3*i + 2] += cells[i].get_death_rate()
                         + (cells.size() - 1) * cells[i].get_death_interaction();
+        // Calculating the sum in here reduces the number of additions
+        // additionally, I think it might allocate event_rate on a register and never move it
+        // because the speedup is like ~30%
+        // It does seem to give a somewhat different answer though, but such is the mysteries of the floating point
+        event_rate += rates[3*i] + rates[3*i + 2];
+        rates[3*i]     -= rates[3*i + 1];
       }
 
       // Take timestep dependent on rate of all events
-      // float event_rate = std::reduce(rates.begin(), rates.end(), 0.0);
-      event_rate = std::accumulate(rates.begin(), rates.end(), 0.0);
       double dt = std::exponential_distribution<double>(event_rate)(rng);
       t += dt;
       estimated_half_wait = 0.5 / event_rate;
