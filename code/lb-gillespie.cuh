@@ -223,6 +223,7 @@ public:
       size_t event = choose_event(n_cells * 3, event_rate);
       size_t event_type = event % 3;
       size_t event_cell = event / 3;
+      std::cout << event << ' ' << event_type << ' ' << event_cell << std::endl;
       switch (event_type) {
       case 0: // birth without mutation
         cells[n_cells++] = cells[event_cell];
@@ -244,6 +245,20 @@ public:
         std::swap(cells[event_cell], cells[n_cells-1]);
         cudaMemcpyAsync(d_cells + event_cell, cells + event_cell, sizeof(TCell), cudaMemcpyHostToDevice, stream);
         --n_cells;
+        if (n_cells == 0) {
+          // Population died out, exit gracefully
+          // (causes horrible pointer errors when it happens if not checked for)
+          std::cout << start_timer() << '\t' << interval_timer() << '\t' << t << '\t' << n_cells << std::endl;
+          cudaFree(d_rates);
+          cudaFree(d_cells);
+          cudaFreeHost(rates);
+          for (int i = 0; i < SUM_DEPTH; ++i) {
+            cudaFree(d_rate_sums[i]);
+            cudaFreeHost(rate_sums[i]);
+          }
+          cudaStreamDestroy(stream);
+          return;
+        }
         break;
       }
 
