@@ -106,5 +106,90 @@ def timelines(inputs, colours, titles):
     plt.show()
 
 
+@main.command()
+def compare_hard():
+    """
+    generate benchmark curves (hardcoded)
+    """
+
+
+    cores = [1, 2, 4, 8, 16]
+    s_times = [[], [], []]
+    g_times = [[], [], []]
+
+    for simulator in ['g', 's']:
+        for n_cores in cores:
+            for i, size in enumerate([1, 10, 100]):
+                ss = str(size) + 'k'
+
+                print('analyzing', '-'.join(['data/bench', str(simulator), ss, str(n_cores)]) + '.out')
+                data = split_output_file('-'.join(['data/bench', str(simulator), ss, str(n_cores)]) + '.out')
+                if simulator == 'g':
+                    g_times[i].append(data['FOOTER']['total_time'])
+                if simulator == 's':
+                    s_times[i].append(data['FOOTER']['total_time'])
+
+    # absolute time plot
+    fig, axs = plt.subplots(3)
+
+    for i in range(3):
+        axs[i].plot(cores, s_times[i], label='sequential')
+        axs[i].plot(cores, g_times[i], label='GPU')
+        # axs[i].set_yticks([])
+        axs[i].set_xticks(cores)
+        axs[i].set_title(str([1, 10, 100][i]) + 'k population size')
+        axs[i].ticklabel_format(style='sci', scilimits=(-128, 128))
+
+    axs[0].legend()
+    axs[1].set_ylabel('Total simulation time [ms]')
+    axs[2].set_xlabel('Number of cores')
+
+    fig.set_size_inches(4, 6, forward=True)
+    plt.tight_layout()
+
+    plt.show()
+
+    # speedup plot
+    fig, axs = plt.subplots(3)
+
+    for i in range(3):
+        axs[i].plot(cores, [s_times[i][0] / x for x, k in zip(s_times[i], cores)], label='sequential')
+        axs[i].plot(cores, [g_times[i][0] / x for x, k in zip(g_times[i], cores)], label='GPU')
+        axs[i].plot([0, 16], [0, 16], label='theoretical')
+        # axs[i].set_yticks([])
+        axs[i].set_xticks(cores)
+        axs[i].set_title(str([1.4, 14, 140][i]) + 'k population size')
+        axs[i].ticklabel_format(style='sci', scilimits=(-128, 128))
+
+    axs[0].legend()
+    axs[1].set_ylabel('Relative speedup')
+    axs[2].set_xlabel('Number of cores')
+
+    fig.set_size_inches(4, 6, forward=True)
+    plt.tight_layout()
+
+    plt.show()
+
+    # scaling plot
+    fig, axs = plt.subplots(1)
+
+    axs.plot([1400, 14000, 140000], [s_times[i][0] for i in range(3)], label='seqential')
+    axs.plot([1400, 14000, 140000], [g_times[i][0] for i in range(3)], label='GPU')
+    axs.set_xticks(cores)
+    axs.set_title(str([1.4, 14, 140][i]) + 'k population size')
+    axs.ticklabel_format(style='sci', scilimits=(-128, 128))
+
+    axs.legend()
+    axs.set_ylabel('Relative speedup')
+    axs.set_xlabel('Number of cores')
+
+    fig.set_size_inches(4, 2, forward=True)
+    plt.tight_layout()
+
+    plt.show()
+
+
+
+
 if __name__ == '__main__':
     main()
